@@ -1,0 +1,189 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+
+-- Configuration
+local Config = {
+    AimbotEnabled = true,
+    Smoothness = 1.0, -- Higher is smoother/slower
+    FOV = 500,
+    TargetPlayer = nil,
+    CurrentCFrame = CFrame.new(),
+}
+
+-- GUI Creation
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AimbotGUI"
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local Frame = Instance.new("Frame")
+Frame.Name = "MainFrame"
+Frame.Size = UDim2.new(0, 200, 0, 150)
+Frame.Position = UDim2.new(0.5, -100, 0.5, -75)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Aimbot & Doxer"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.Parent = Frame
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleBtn"
+ToggleButton.Size = UDim2.new(1, -20, 0, 40)
+ToggleButton.Position = UDim2.new(0, 10, 0, 40)
+ToggleButton.BackgroundColor3 = Config.AimbotEnabled and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(100, 100, 100)
+ToggleButton.Text = "Aimbot: ON"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.GothamSemibold
+ToggleButton.TextSize = 14
+ToggleButton.Parent = Frame
+
+ToggleButton.MouseButton1Click:Connect(function()
+    Config.AimbotEnabled = not Config.AimbotEnabled
+    ToggleButton.BackgroundColor3 = Config.AimbotEnabled and Color3.fromRGB(0, 120, 215) or Color3.fromRGB(100, 100, 100)
+    ToggleButton.Text = Config.AimbotEnabled and "Aimbot: ON" or "Aimbot: OFF"
+end)
+
+local SliderLabel = Instance.new("TextLabel")
+SliderLabel.Name = "SmoothLabel"
+SliderLabel.Size = UDim2.new(1, -20, 0, 20)
+SliderLabel.Position = UDim2.new(0, 10, 0, 90)
+SliderLabel.BackgroundTransparency = 1
+SliderLabel.Text = "Smoothness: High"
+SliderLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+SliderLabel.Font = Enum.Font.Gotham
+SliderLabel.TextSize = 14
+SliderLabel.Parent = Frame
+
+local SliderLine = Instance.new("Frame")
+SliderLine.Name = "SliderLine"
+SliderLine.Size = UDim2.new(1, -20, 0, 5)
+SliderLine.Position = UDim2.new(0, 10, 0, 115)
+SliderLine.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+SliderLine.Parent = Frame
+
+local SliderHandle = Instance.new("Frame")
+SliderHandle.Name = "SliderHandle"
+SliderHandle.Size = UDim2.new(0, 10, 0, 15)
+SliderHandle.Position = UDim2.new(1, -10, 0, -5)
+SliderHandle.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+SliderHandle.Parent = SliderLine
+
+local isDragging = false
+local dragStartPos = Vector2.new(0, 0)
+local handleStartPos = Vector2.new(0, 0)
+
+SliderHandle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+        handleStartPos = Vector2.new(SliderHandle.Position.X.Offset, SliderHandle.Position.Y.Offset)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local deltaX = input.Position.X - dragStartPos.X
+        local newWidth = math.clamp(handleStartPos.X + deltaX, 0, SliderLine.AbsoluteSize.X - 10)
+        SliderHandle.Position = UDim2.new(0, newWidth, 0, -5)
+        
+        -- Update smoothness (inverse relationship for UI feel: right is smoother)
+        local percent = newWidth / (SliderLine.AbsoluteSize.X - 10)
+        Config.Smoothness = 1.0 + (percent * 5) -- Range from 1 to 6
+        SliderLabel.Text = string.format("Smoothness: %.1f", Config.Smoothness)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = false
+    end
+end)
+
+ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- Doxing Logic (Simulated/Local)
+local function doxPlayer(player)
+    local info = {
+        Name = player.Name,
+        UserID = player.UserId,
+        JoinDate = player.CreatedOn,
+        RobloxAvatar = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. player.UserId .. "&width=420&height=420&format=png",
+        LocalIP = "127.0.0.1", -- Simulated local IP since Roblox doesn't expose real IPs easily in client scripts
+        Location = "Unknown (Client-Side Script)",
+        Device = "PC/Web/Mobile",
+        LastSeen = os.date("%Y-%m-%d %H:%M:%S")
+    }
+    
+    -- Print to output as if we are logging it
+    print("[DOX] Target Acquired: " .. player.Name)
+    print("[DOX] Data: " .. HttpService:JSONEncode(info))
+    
+    return info
+end
+
+-- Aimbot Logic
+local function getClosestTarget()
+    local closest = nil
+    local minDistance = math.huge
+    local myChar = game.Players.LocalPlayer.Character
+    if not myChar then return nil end
+    
+    local myHead = myChar:FindFirstChild("Head")
+    if not myHead then return nil end
+    
+    local myPos = myHead.Position
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= game.Players.LocalPlayer and player.Character and player.Character.PrimaryPart then
+            local targetPos = player.Character.PrimaryPart.Position
+            local distance = (myPos - targetPos).Magnitude
+            
+            if distance < Config.FOV and distance < minDistance then
+                minDistance = distance
+                closest = player
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if Config.AimbotEnabled then
+        local target = getClosestTarget()
+        
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            local head = target.Character.Head
+            local targetCFrame = head.CFrame
+            
+            -- Smooth interpolation
+            local tweenInfo = TweenInfo.new(Config.Smoothness, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local tween = TweenService:Create(game.Players.LocalPlayer.CameraSubject, tweenInfo, {
+                CFrame = CFrame.new(game.Players.LocalPlayer.CameraSubject.CFrame.Position, targetCFrame.Position)
+            })
+            tween:Play()
+            
+            -- Visual indicator (optional, changes camera subject briefly to show lock)
+            -- In a full exploit, this might weld a part to the head
+        end
+    end
+end)
+
+-- Periodic Dox simulation
+while true do
+    wait(10) -- Every 10 seconds, simulate finding a new person
+    local randomPlayer = Players:GetPlayers()[math.random(1, #Players:GetPlayers())]
+    if randomPlayer and randomPlayer ~= game.Players.LocalPlayer then
+        doxPlayer(randomPlayer)
+    end
+end
